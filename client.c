@@ -151,6 +151,10 @@ int main(int argc, char const *argv[])
     printf("Thread id: %u\n", thread_id);
     printf("Process ID : %d\n", (int)getpid());
 
+    end = clock();
+    dif = end - start;
+    printf("Elapsed time in millisecond: %0.6lf\n", dif/MICRO_SEC);
+
     close(sock);
 
 	return 0;

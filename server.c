@@ -11,7 +11,7 @@
 #include <math.h>
 #include <pthread.h>
 #define MAX_LENGTH 512
-#define DEBUG   
+//#define DEBUG   
 
 void *operation_thread(void *thread_info);
 int check_operation(int op);
@@ -168,7 +168,7 @@ int main(int argc, char const *argv[])
         }
 
         thread_counter++;
-        
+
         #ifdef DEBUG
         printf("thread_counter %d\n", thread_counter);
         #endif
