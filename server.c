@@ -9,7 +9,9 @@
 #include <sys/types.h>
 #include <time.h> 
 #include <math.h>
+#include <pthread.h>
 #define MAX_LENGTH 512
+#define DEBUG   
 
 void *operation_thread(void *thread_info);
 int check_operation(int op);
@@ -36,7 +38,10 @@ int main(int argc, char const *argv[])
     int i, c;
     const char* ipAddress = argv[1];
     int portNo = atoi(argv[2]);
+    int thread_res;
     int numofthread = atoi(argv[3]);
+    int MAX_PER_THREAD = numofthread*2;
+    int thread_counter = 0;
     pthread_t op_threads[numofthread];
     struct thread_info_t thread_info[numofthread];
     int socketFd;
@@ -63,7 +68,10 @@ int main(int argc, char const *argv[])
         return -1;
     }
 
-    printf("Main socket created\n\n\n");
+    #ifdef DEBUG
+        printf("Main socket created\n\n");
+    #endif
+    
 
     //Prepare the sockaddr_in structure
     server.sin_family = AF_INET;
@@ -77,7 +85,10 @@ int main(int argc, char const *argv[])
         perror("bind failed. Error");
         return -1;
     }
+
+    #ifdef DEBUG
     printf("bind done\n");
+    #endif
 
     //Listen
     listen(socketFd , 3);
@@ -89,7 +100,7 @@ int main(int argc, char const *argv[])
         
         memset(recieve, 0 , sizeof(recieve));
 
-        //Receive a reply from the server
+        //Receive op no from client
         if( recv(client_sock[counter] , recieve , MAX_LENGTH , 0) < 0){
             perror("recv failed");
             break;
@@ -103,19 +114,35 @@ int main(int argc, char const *argv[])
         //printf("port_sent %d\n", port_sent);
         
         if(port_sent != 0){
+            #ifdef DEBUG
             puts("same op accepted");
+            #endif
 
             memset(message, 0 , sizeof(message));
             sprintf(message, "%d", op_check[atoi(recieve)]);
 
-            //Send some data
+            //Send port number to client
             if( send(client_sock[counter] , message , strlen(message) , 0) < 0){
                 puts("Send failed");
                 return 1;
             }
+            
         }else{
-
+            #ifdef DEBUG
             puts("New client accepted");
+            #endif
+
+            //Refuse the client if want to do third op, sent -1
+            if(counter == numofthread){
+                memset(memset, 0, MAX_LENGTH);
+                sprintf(message, "%d", -1);
+                if( send(client_sock[counter] , message , strlen(message) , 0) < 0){
+                    puts("Send failed");
+                    return -1;
+                }
+                break;
+            }
+
             op_check[atoi(recieve)] = ++portNo;
 
             thread_info[counter].portNo = portNo;
@@ -136,32 +163,45 @@ int main(int argc, char const *argv[])
                 return 1;
             }
 
-            /*
+            
             counter++;
-
-            if(counter == 2)
-                break;
-            */
         }
+
+        thread_counter++;
+        
+        #ifdef DEBUG
+        printf("thread_counter %d\n", thread_counter);
+        #endif
+
+        if(thread_counter == MAX_PER_THREAD)
+            break;
+    }
+
+    #ifdef DEBUG
+    puts("Service ends");
+    puts("Wait for threads die");
+    #endif
+    
+    for (i = 0; i < numofthread; ++i)
+    {
+        pthread_join(op_threads[i], NULL); 
     }
 
     close(socketFd);
 
-    while(1){
-
-    }
     return 0;
 }
 
 void *operation_thread(void *thread_info){
     struct thread_info_t* info = (struct thread_info_t*)thread_info;
+    struct sockaddr_in server, client;
+    double param1, param2, result = 0;
+    unsigned int thread_id;
     int client_number = 2;
     int port = info->portNo;
     int opno = info->opno;
-    double param1, param2, result = 0;
     int c;
     int cur_sock;
-    struct sockaddr_in server, client;
     int socketFd;
     int counter = 0;
     int client_sock[client_number];
@@ -170,9 +210,11 @@ void *operation_thread(void *thread_info){
     server.sin_addr.s_addr = inet_addr(global_ip);
     server.sin_port = htons( port );
 
+    #ifdef DEBUG
     printf("thread started\n");
     printf("portNo: %d\n", info->portNo);
     printf("opno: %d\n", info->opno);
+    #endif
 
     if( (socketFd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
     {
@@ -199,12 +241,16 @@ void *operation_thread(void *thread_info){
 
     c = sizeof(struct sockaddr_in);
 
+    #ifdef DEBUG
     printf("listening...\n");
+    #endif
 
     while( (client_sock[counter] = accept(socketFd, (struct sockaddr *)&client, (socklen_t*)&c)) ){
+        #ifdef DEBUG
         puts("Connection accepted");
-
         printf("thread: client socket: %d\n", client_sock[counter]);
+        #endif       
+        
         cur_sock = client_sock[counter];
         counter++;
 
@@ -218,8 +264,10 @@ void *operation_thread(void *thread_info){
         }
 
         param1 = atof(receive);
-
+        
+        #ifdef DEBUG
         printf("param1: %lf\n", param1);
+        #endif
         
         memset(receive, 0, sizeof(receive));
 
@@ -231,9 +279,10 @@ void *operation_thread(void *thread_info){
 
         param2 = atof(receive);
         
+        #ifdef DEBUG
         printf("param2: %lf\n", param2);
-        
         printf("opno: %d\n", opno);
+        #endif
 
         switch(opno){
             case 1:
@@ -251,18 +300,40 @@ void *operation_thread(void *thread_info){
                 
         }
 
+        /********** Send Result ************/
         memset(sending, 0, MAX_LENGTH);
         sprintf(sending, "%.4lf", result);
 
-        printf("send res: %s\n", sending);
+        #ifdef DEBUG
+        printf("send result: %s\n", sending);
+        #endif
 
         if( send(cur_sock , sending , MAX_LENGTH , 0) < 0){
             perror("send failed");
             close(cur_sock);
             return;
         }
+        /**************************************/
+       
+        /********** Send thread ID ************/
+        thread_id = (unsigned int)pthread_self();
+        memset(sending, 0, MAX_LENGTH);
+        sprintf(sending, "%d", thread_id);
 
+        #ifdef DEBUG
+        printf("thread id: %s\n", sending);
+        #endif
+
+        if( send(cur_sock , sending , MAX_LENGTH , 0) < 0){
+            perror("send failed");
+            close(cur_sock);
+            return;
+        }
+        /**************************************/
+
+        #ifdef DEBUG
         printf("counter %d\n", counter);
+        #endif
 
         if(counter == 2)
             break;
@@ -270,7 +341,11 @@ void *operation_thread(void *thread_info){
 
     close(socketFd);
 
+    #ifdef DEBUG
     printf("thread exit\n");
+    #endif
+
+    pthread_exit(NULL);
     //printf("socket desc: %d\n", *(int*)socket_desc);
 }
 
@@ -289,24 +364,32 @@ int check_operation(int op){
 }
 
 double op1(double param1, double param2){
+    #ifdef DEBUG
     printf("op1 started\n");
+    #endif
     return sqrt(param1 + param2);
 }
 
 double op2(double param1, double param2){
+    #ifdef DEBUG
     printf("op2 started\n");
+    #endif
 
     return sin(param1/param2);
 }
 
 double op3(double param1, double param2){
+    #ifdef DEBUG
     printf("op3 started\n");
+    #endif
 
     return fabs(param1-param2);
 }
 
 double op4(double param1, double param2){
+    #ifdef DEBUG
     printf("op4 started\n");
-    
-    return 100;
+    #endif
+
+    return (double)cos(param2)*(-10);
 }
