@@ -11,6 +11,7 @@
 #include <math.h>
 #include <pthread.h>
 #define MAX_LENGTH 512
+#define MAX_THREAD_PER_SERVER 2
 //#define DEBUG   
 
 void *operation_thread(void *thread_info);
@@ -40,7 +41,7 @@ int main(int argc, char const *argv[])
     int portNo = atoi(argv[2]);
     int thread_res;
     int numofthread = atoi(argv[3]);
-    int MAX_PER_THREAD = numofthread*2;
+    int max_thread = numofthread*MAX_THREAD_PER_SERVER;
     int thread_counter = 0;
     pthread_t op_threads[numofthread];
     struct thread_info_t thread_info[numofthread];
@@ -173,7 +174,7 @@ int main(int argc, char const *argv[])
         printf("thread_counter %d\n", thread_counter);
         #endif
 
-        if(thread_counter == MAX_PER_THREAD)
+        if(thread_counter == max_thread)
             break;
     }
 

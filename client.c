@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #define MAX_LENGTH 512
 #define MICRO_SEC 1000
+
 //#define DEBUG 
 
 
@@ -136,8 +137,11 @@ int main(int argc, char const *argv[])
     
     if(procedure_no == 4){
     	param1 = 0;
-    	param2 = dif/MICRO_SEC;	
+    	param2 = dif/MICRO_SEC;
+    	
+    	#ifdef DEBUG	
     	printf("dif: %lf\n", dif);
+    	#endif
     }
 
     sendParams(sock, param1, param2);
